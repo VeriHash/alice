@@ -15,6 +15,7 @@
 package signer
 
 import (
+	"crypto/ecdsa"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -26,6 +27,9 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
 
+	gethCrypto "github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/getamis/alice/crypto/elliptic"
 	"github.com/getamis/alice/crypto/homo/paillier"
 	"github.com/getamis/alice/crypto/tss/ecdsa/gg18/signer"
 	"github.com/getamis/alice/example/gg18/dkg"
@@ -93,7 +97,7 @@ var Cmd = &cobra.Command{
 			log.Warn("Cannot get DKG result", "err", err)
 			return err
 		}
-
+ 
 		// For simplicity, we use Paillier algorithm in signer.
 		paillier, err := paillier.NewPaillier(2048)
 		if err != nil {
@@ -128,13 +132,16 @@ var Cmd = &cobra.Command{
 			return err
 		}
 
-		signerResult := &SignerResult{
-			R: result.R.String(),
-			S: result.S.String(),
+		// Print out required information for Ethereum ecrecover validation
+		ecdsaPublicKey := &ecdsa.PublicKey{
+			Curve: elliptic.Secp256k1(),
+			X:     dkgResult.PublicKey.GetX(),
+			Y:     dkgResult.PublicKey.GetY(),
 		}
-
-		rawResult, _ := yaml.Marshal(signerResult)
-		fmt.Println(string(rawResult))
+		dkgAddress := gethCrypto.PubkeyToAddress(*ecdsaPublicKey)
+		fmt.Printf("pubkey = '0x%x'\n", dkgAddress)
+		fmt.Printf("message = '0x%x'\n", []byte(cfg.Message))
+		fmt.Printf("signature = '0x%x'\n", result.EthSignature())
 
 		return nil
 	},
